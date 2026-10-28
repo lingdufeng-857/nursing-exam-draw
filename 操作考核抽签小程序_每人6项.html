@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="theme-color" content="#173b5e">
+<title>操作考核抽签小程序（6项版）</title>
+<style>
+:root{--blue:#173b5e;--pale:#edf4fa;--line:#d7e1eb;--ink:#182433;--muted:#65758b;--red:#a33131}
+*{box-sizing:border-box}body{margin:0;background:#f3f6fa;color:var(--ink);font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+header{background:var(--blue);color:#fff;padding:23px 16px 20px}header h1{font-size:23px;margin:0 0 7px}header p{font-size:13px;line-height:1.6;margin:0;opacity:.92}
+main{max-width:760px;margin:auto;padding:13px}.panel{background:#fff;border:1px solid var(--line);border-radius:15px;padding:15px;margin:0 0 13px;box-shadow:0 2px 8px #12304a08}
+h2{font-size:17px;margin:0 0 11px}.muted{font-size:13px;color:var(--muted);line-height:1.65}.field{width:100%;min-width:0;border:1px solid #cbd5e1;border-radius:9px;padding:10px;font:inherit;color:var(--ink);background:#fff}
+.groups{display:grid;grid-template-columns:1fr;gap:10px}.group{border:1px solid var(--line);border-radius:12px;padding:11px}.ghead{display:flex;align-items:center;gap:8px;margin-bottom:9px}.ghead .num{font-size:13px;color:var(--muted);flex:0 0 auto}.ghead input{font-weight:700}.subitems{display:grid;grid-template-columns:1fr;gap:7px}.subrow{display:flex;gap:6px;align-items:center}.subrow input{flex:1;min-width:0}.remove{background:#fff0f0;color:var(--red);padding:8px 10px;border-radius:8px;font-weight:700}
+button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:11px 14px;cursor:pointer}.primary{background:var(--blue);color:white;flex:1}.secondary{background:var(--pale);color:var(--blue)}.tiny{font-size:13px;padding:8px 10px}.actions{display:flex;gap:8px;flex-wrap:wrap}.status{border-radius:9px;background:#f5f8fb;padding:10px;font-size:13px;line-height:1.6;margin:10px 0}.status.error{background:#fff0f0;color:var(--red)}.result{display:none}.result.show{display:block}.pick{border:1px solid var(--line);border-radius:11px;padding:13px;background:#fbfdff}.pick+.pick{margin-top:8px}.picknum{font-size:12px;color:var(--muted);margin-bottom:4px}.pickname{font-size:18px;font-weight:800;overflow-wrap:anywhere}.pickgroup{font-size:13px;color:var(--blue);margin-top:4px}.historyrow{border-top:1px solid var(--line);padding:10px 0;font-size:13px;line-height:1.65}.historyrow:first-child{border-top:0}
+@media(min-width:570px){.groups{grid-template-columns:1fr 1fr}}
+@media print{header{background:white;color:black;border-bottom:1px solid #aaa}.editor,.actions,.muted,footer{display:none!important}body{background:white}.panel{box-shadow:none}.result{display:block}}
+</style>
+</head>
+<body>
+<header><h1>操作考核抽签小程序</h1><p>6个大项 · 22个小项 · 每名学员抽6项 · 每个大项各抽1项</p></header>
+<main>
+<section class="panel editor">
+<h2>① 考核项目设置</h2>
+<p class="muted">将示例名称改为实际项目。可在每个大项内添加或删除小项。正式抽签前必须恰好有6个大项、22个小项，每个大项至少有1个小项。</p>
+<div id="groups" class="groups"></div>
+<div id="validation" class="status">正在检查项目数量……</div>
+<div class="actions"><button class="secondary" id="reset">恢复示例</button><button class="secondary" id="exportItems">导出项目清单</button></div>
+</section>
+
+<section class="panel">
+<h2>② 学员抽签</h2>
+<label class="muted" for="student">学员编号 / 姓名（选填）</label>
+<input id="student" class="field" placeholder="例如：第01号学员" style="margin:6px 0 12px">
+<div class="actions"><button id="draw" class="primary">抽取6个考核小项</button><button id="clear" class="secondary">清除结果</button></div>
+<p class="muted">抽签算法：6个大项全部入选，每个大项内部随机抽取1个小项。因此每位学员恰好抽到6个小项，且不会出现同一大项重复。不同学员之间默认允许抽到相同小项。</p>
+</section>
+
+<section class="panel result" id="result">
+<h2>本次抽签结果</h2><div id="meta" class="muted" style="margin-bottom:10px"></div><div id="picks"></div>
+<div class="actions" style="margin-top:12px"><button class="secondary" id="saveResult">保存到抽签记录</button><button class="secondary" id="print">打印 / 保存 PDF</button></div>
+</section>
+
+<section class="panel">
+<h2>③ 抽签记录</h2><p class="muted">记录暂存在当前页面运行期间。为避免关闭页面后丢失，请及时下载 CSV 记录。</p>
+<div id="history" class="muted">暂无记录。</div>
+<div class="actions" style="margin-top:10px"><button class="secondary" id="downloadHistory">下载抽签记录 CSV</button><button class="secondary" id="clearHistory">清空记录</button></div>
+</section>
+<footer class="muted" style="text-align:center;padding:5px 0 22px">考核负责人请在正式抽签前核对6个大项和22个小项的名称。</footer>
+</main>
+<script>
+const starter=[
+{name:"大项1",items:["小项1-1","小项1-2","小项1-3","小项1-4"]},
+{name:"大项2",items:["小项2-1","小项2-2","小项2-3","小项2-4"]},
+{name:"大项3",items:["小项3-1","小项3-2","小项3-3","小项3-4"]},
+{name:"大项4",items:["小项4-1","小项4-2","小项4-3","小项4-4"]},
+{name:"大项5",items:["小项5-1","小项5-2","小项5-3"]},
+{name:"大项6",items:["小项6-1","小项6-2","小项6-3"]}
+];
+let groups=structuredClone(starter),current=null,history=[];
+const $=id=>document.getElementById(id);
+function render(){
+ const root=$('groups');root.innerHTML='';
+ groups.forEach((g,gi)=>{
+  const box=document.createElement('div');box.className='group';
+  const head=document.createElement('div');head.className='ghead';
+  const num=document.createElement('span');num.className='num';num.textContent=`大项 ${gi+1}`;
+  const name=document.createElement('input');name.className='field';name.value=g.name;name.setAttribute('aria-label',`第${gi+1}大项名称`);
+  name.addEventListener('input',()=>{groups[gi].name=name.value;check();});
+  head.append(num,name);box.append(head);
+  const sub=document.createElement('div');sub.className='subitems';
+  g.items.forEach((item,ii)=>{
+   const row=document.createElement('div');row.className='subrow';
+   const inp=document.createElement('input');inp.className='field';inp.value=item;inp.setAttribute('aria-label',`${g.name}小项${ii+1}`);
+   inp.addEventListener('input',()=>{groups[gi].items[ii]=inp.value;check();});
+   const del=document.createElement('button');del.className='remove tiny';del.textContent='删除';
+   del.addEventListener('click',()=>{if(groups[gi].items.length<=1){alert('每个大项至少保留1个小项。');return;}groups[gi].items.splice(ii,1);render();});
+   row.append(inp,del);sub.append(row);
+  });
+  const add=document.createElement('button');add.className='secondary tiny';add.style.marginTop='8px';add.textContent='+ 添加小项';
+  add.addEventListener('click',()=>{groups[gi].items.push(`新小项${groups.reduce((n,x)=>n+x.items.length,0)+1}`);render();});
+  box.append(sub,add);root.append(box);
+ });
+ check();
+}
+function check(){
+ const total=groups.reduce((n,g)=>n+g.items.length,0);
+ const valid=groups.length===6&&total===22&&groups.every(g=>g.name.trim()&&g.items.length>0&&g.items.every(x=>x.trim()));
+ $('validation').className='status'+(valid?'':' error');
+ $('validation').textContent=valid?'项目数量正确：6个大项、22个小项。可以开始抽签。':`当前：${groups.length}个大项、${total}个小项。抽签前需满足6个大项、22个小项；名称不得为空。`;
+ $('draw').disabled=!valid;$('draw').style.opacity=valid?'1':'.5';return valid;
+}
+function draw(){
+ if(!check())return;
+ const picks=groups.map(g=>({group:g.name,item:g.items[Math.floor(Math.random()*g.items.length)]}));
+ current={student:$('student').value.trim()||'未填写学员',time:new Date().toLocaleString('zh-CN'),picks};
+ $('meta').textContent=`学员：${current.student}　｜　时间：${current.time}`;
+ $('picks').innerHTML='';
+ picks.forEach((p,i)=>{const div=document.createElement('div');div.className='pick';const n=document.createElement('div');n.className='picknum';n.textContent=`考核项目 ${i+1}`;const name=document.createElement('div');name.className='pickname';name.textContent=p.item;const group=document.createElement('div');group.className='pickgroup';group.textContent=`所属大项：${p.group}`;div.append(n,name,group);$('picks').append(div);});
+ $('result').classList.add('show');
+}
+function csv(v){return '"'+String(v).replace(/"/g,'""')+'"';}
+function download(filename,rows){const data='\ufeff'+rows.map(r=>r.map(csv).join(',')).join('\r\n');const blob=new Blob([data],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+function renderHistory(){
+ const el=$('history');el.innerHTML='';
+ if(!history.length){el.textContent='暂无记录。';return;}
+ history.forEach((h,i)=>{const d=document.createElement('div');d.className='historyrow';const strong=document.createElement('strong');strong.textContent=`${history.length-i}. ${h.student}｜${h.time}`;const p=document.createElement('div');p.textContent=h.picks.map(x=>`${x.group}：${x.item}`).join('；');d.append(strong,p);el.append(d);});
+}
+$('draw').addEventListener('click',draw);
+$('clear').addEventListener('click',()=>{$('result').classList.remove('show');current=null;});
+$('reset').addEventListener('click',()=>{if(confirm('确定恢复示例项目？当前修改会丢失。')){groups=structuredClone(starter);render();}});
+$('saveResult').addEventListener('click',()=>{if(!current){alert('请先抽签。');return;}history.unshift(structuredClone(current));renderHistory();alert('已添加到本页面抽签记录。请下载 CSV 留档。');});
+$('print').addEventListener('click',()=>window.print());
+$('exportItems').addEventListener('click',()=>{const rows=[['大项','小项']];groups.forEach(g=>g.items.forEach(x=>rows.push([g.name,x])));download('操作考核项目清单.csv',rows);});
+$('downloadHistory').addEventListener('click',()=>{const rows=[['学员','时间','大项1','小项1','大项2','小项2','大项3','小项3','大项4','小项4','大项5','小项5','大项6','小项6']];history.forEach(h=>{const row=[h.student,h.time];h.picks.forEach(p=>row.push(p.group,p.item));rows.push(row);});download('操作考核抽签记录.csv',rows);});
+$('clearHistory').addEventListener('click',()=>{if(confirm('确定清空当前页面记录？')){history=[];renderHistory();}});
+render();
+</script>
+</body></html>
